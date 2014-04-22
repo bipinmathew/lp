@@ -1,94 +1,10 @@
 #include <iostream>
 #include <stdio.h>
+#include <stack>
 #include <string.h>
 #include <stdlib.h>
-#include <stack>
-
-class Matrix {
-    public:
-
-        /** \brief Constructor to create Matrix object from C-style double array
-         *
-         * \param[in] in pointer to C-style matrix.
-         * \param[in] n Number of rows.
-         * \param[in] m Number of columns.
-         * \return none
-         *
-         */
-        Matrix(const double *in, unsigned int n, unsigned int m);
-
-        /** \fn Matrix& pivot(unsigned int pi,unsigned int pj);
-        * \brief Pivot matrix on a given element.
-        * \param[in] pi Row index of element to pivot on.
-        * \param[in] pj Column index of element to pivot on.
-        * \return 0 on success, non-zero on failure.
-        *
-        */
-
-        /** \brief Destructor frees allocated memory and cleans up.
-         * \return none
-         *
-         */
-
-        ~Matrix();
-        Matrix& pivot(unsigned int pi,unsigned int pj);
-
-        /** \fn print()
-        *  \brief Output matrix to standard out.
-        *  \return void
-        */
-        void print();
-
-
-    private:
-        double *A;
-        unsigned int N,  M;
-};
-
-Matrix::Matrix(const double *in, unsigned int n, unsigned int m){
-    N = n;
-    M = m;
-    A = (double *)calloc(n*m,sizeof(double));
-    memcpy(A,in,M*N*sizeof(double));
-}
-
-Matrix::~Matrix(){
-    free(A);
-}
-
-Matrix& Matrix::pivot(unsigned int pi,unsigned int pj){
-    unsigned int i,j;
-    double p,multiplier;
-    p = 1/A[(N*pi)+pj];
-    for(j=0;j<N;j++){
-        A[(N*pi)+j] *= p;
-    }
-
-    for(i=0;i<M;i++){
-        if(i==pi)
-            continue;
-        multiplier = (A[(N*i)+pj]);
-        for(j=0;j<N;j++){
-            //printf("(%d,%d)\r\n",i,j);
-            A[(N*i)+j] = A[(N*i)+j]-(multiplier*A[(N*pi)+j]);
-        }
-    }
-    return *this;
-}
-
-
-
-void Matrix::print(){
-    unsigned int i, j;
-    for(j=0;j<M;j++){
-        for(i=0;i<N;i++){
-            printf("%f\t",A[(N*j)+i]);
-        }
-        printf("\r\n");
-    }
-    printf("\r\n");
-}
-
+#include <stdio.h>
+#include "matrix.h"
 
 template <class T, class Q>
 class BB {
@@ -116,17 +32,49 @@ class ILP : public PartialSolution{
     public:
         int eval(){ return 0;}
         int branch(){ return 0;}
+        Matrix& solve_simplex(Matrix &A, Vector &b, Vector &c);
+    private:
+        int find_bfs(Matrix &A, Matrix &b, Matrix &c);
+        Matrix& build_tableau(const Matrix &A, const Vector &b, const Vector &c);
 };
+
+Matrix& ILP::build_tableau(const Matrix &A, const Vector &b, const Vector &c){
+    Matrix *Tbl = new Matrix(A);
+    printf("This is Tbl: \r\n");
+    Tbl->print();
+    return Tbl->appendColumn(b);
+}
+
+Matrix& ILP::solve_simplex(Matrix &A, Vector &b, Vector &c){
+    return build_tableau(A,b,c);
+}
 
 using namespace std;
 
 int main()
 {
-    double a[9] = {1,3,1,1,1,-1,3,11,5};
-    Matrix A(a,3,3);
+    ILP *p = new ILP;
+    double a[9] = {2,1,2,3,3,1};
+    double b[4] = {4,3};
+    double c[3] = {4,1,1};
+
+    Matrix A(a,2,3);
+    Vector B(b,2);
+    Vector C(c,3);
+
     A.print();
-    A.pivot(0,0).print();
-    A.print();
+    B.print();
+    C.print();
+
+
+
+    (p->solve_simplex(A,B,C)).print();
+
+
+    //Matrix A(a,3,3);
+    //A.print();
+    //A.pivot(0,0).pivot(1,1).appendRow(c).appendColumn(b).print();
+    //A.print();
     /* double b[3] = {9,1,35};
     ILP PS;
     BB< ILP,std::stack<ILP> > ILPSolver;
