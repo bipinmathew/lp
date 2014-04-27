@@ -11,7 +11,10 @@ function x = revised_simplex(A,b,c)
     % minimize 1'y
     [x,bv] = find_bfs(A,b)
     dv = setdiff([1:N],bv)
-    r = c(dv).'-c(bv).'*inv(A(:,bv))*A(:,dv)
+
+    lambda = linsolve(A(:,bv).',c(bv))
+    r = c(dv).'-lambda.'*A(:,dv)
+
     while ~isempty(find(r<0))
         J = find(r<0)
         JIDX = J(1)
@@ -26,11 +29,18 @@ function x = revised_simplex(A,b,c)
             K=bv(KIDX) % basis to leave
             bv(KIDX) = J
             dv(JIDX) = K
-            b = inv(A(:,bv))*b
-            r = c(dv).'-c(bv).'*inv(A(:,bv))*A(:,dv)
+
+            b = linsolve(A(:,bv),b)
+            lambda = linsolve(A(:,bv).',c(bv))
+            r = c(dv).'-lambda.'*A(:,dv)
+
         end
 
     end
+
+    x = zeros(1,N)
+    x = x(:)
+    x(bv) = b
 
     keyboard;
 
@@ -47,7 +57,8 @@ function [x,bv] = find_bfs(A,b)
   c = c(:)
   c(bv) = 1
   dv = setdiff([1:N+M],bv)
-  r = c(dv).'-c(bv).'*inv(A(:,bv))*A(:,dv)
+  lambda = linsolve(A(:,bv).',c(bv))
+  r = c(dv).'-lambda.'*A(:,dv)
   while ~isempty(find(r<0))
       J = find(r<0)
       JIDX = J(1)
@@ -62,8 +73,12 @@ function [x,bv] = find_bfs(A,b)
           K=bv(KIDX) % basis to leave
           bv(KIDX) = J
           dv(JIDX) = K
-          b = inv(A(:,bv))*b
-          r = c(dv).'-c(bv).'*inv(A(:,bv))*A(:,dv)
+
+          b = linsolve(A(:,bv),b)
+          lambda = linsolve(A(:,bv).',c(bv))
+
+          r = c(dv).'-lambda.'*A(:,dv)
+          
       end
 
   end
