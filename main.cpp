@@ -40,8 +40,6 @@ class ILP : public PartialSolution{
 
 Matrix& ILP::build_tableau(const Matrix &A, const Vector &b, const Vector &c){
     Matrix *Tbl = new Matrix(A);
-    printf("This is Tbl: \r\n");
-    Tbl->print();
     return Tbl->appendColumn(b);
 }
 
