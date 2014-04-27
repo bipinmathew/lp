@@ -60,13 +60,13 @@ int main()
     Vector B(b,2);
     Vector C(c,3);
 
-    A.print();
+    A.appendRow(C).print();
     B.print();
     C.print();
 
 
 
-    (p->solve_simplex(A,B,C)).print();
+    // (p->solve_simplex(A,B,C)).print();
 
 
     //Matrix A(a,3,3);
