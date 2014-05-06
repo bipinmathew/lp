@@ -10,39 +10,7 @@ function x = revised_simplex(A,b,c)
     % First we need to solve the augmented LP to get our first BFS
     % minimize 1'y
     [x,bv] = find_bfs(A,b)
-    dv = setdiff([1:N],bv)
-
-    lambda = linsolve(A(:,bv).',c(bv))
-    r = c(dv).'-lambda.'*A(:,dv)
-
-    while ~isempty(find(r<0))
-        J = find(r<0)
-        JIDX = J(1)
-        J = dv(JIDX) % basis to enter 
-        ratios = b./A(:,J)
-        if isempty(find(ratios>=0))
-            error('Initial feasible solution could not be found. Phase I system is unbounded from below.');
-        else
-            min_ratios=min(ratios(find(ratios>=0)))
-            K=find(ratios==min_ratios)
-            KIDX = K(1)
-            K=bv(KIDX) % basis to leave
-            bv(KIDX) = J
-            dv(JIDX) = K
-
-            b = linsolve(A(:,bv),b)
-            lambda = linsolve(A(:,bv).',c(bv))
-            r = c(dv).'-lambda.'*A(:,dv)
-
-        end
-
-    end
-
-    x = zeros(1,N)
-    x = x(:)
-    x(bv) = b
-
-    keyboard;
+    x = simplex_core(A,b,c,bv)
 
 end
 
@@ -56,7 +24,14 @@ function [x,bv] = find_bfs(A,b)
   c = zeros(1,M+N)
   c = c(:)
   c(bv) = 1
-  dv = setdiff([1:N+M],bv)
+  x = simplex_core(A,b,c,bv)
+        
+end
+
+
+function x = simplex_core(A,b,c,bv)
+  [M,N] = size(A)
+  dv = setdiff([1:N],bv)
   lambda = linsolve(A(:,bv).',c(bv))
   r = c(dv).'-lambda.'*A(:,dv)
   while ~isempty(find(r<0))
@@ -85,5 +60,8 @@ function [x,bv] = find_bfs(A,b)
   x = zeros(1,N)
   x = x(:)
   x(bv) = b
-        
 end
+
+
+
+
