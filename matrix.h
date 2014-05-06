@@ -1,7 +1,8 @@
 #ifndef MATRIX_H
 #define MATRIX_H
+
+template <class T>
 class Matrix {
-    friend class Vector;
     public:
 
         /** \brief Constructor to create Matrix object from C-style double array
@@ -12,7 +13,7 @@ class Matrix {
          * \return none
          *
          */
-        Matrix(const double *in, unsigned int n, unsigned int m);
+        Matrix(const T *in, unsigned int n, unsigned int m);
 
         /** \brief Copy constructor to do a deep copy of Matrix object.
          * \fn Matrix( const Matrix& other)
@@ -20,7 +21,7 @@ class Matrix {
          * \return none
          *
          */
-        Matrix( const Matrix& other);
+        Matrix( const Matrix<T>& other);
 
 
         /** \brief Destructor frees allocated memory and cleans up.
@@ -47,7 +48,7 @@ class Matrix {
          * \return reference to updated Matrix object
          *
          */
-        Matrix& appendRow(const Matrix& in);
+        Matrix& appendRow(const Matrix<T>& in);
 
 
         /** \brief Append column to matrix.
@@ -56,7 +57,7 @@ class Matrix {
          * \return reference to updated Matrix object
          *
          */
-        Matrix& appendColumn(const Matrix& in);
+        Matrix& appendColumn(const Matrix<T>& in);
 
         unsigned int getNumRows() const {
             return M;
@@ -64,6 +65,10 @@ class Matrix {
 
         unsigned int getNumCols() const {
             return N;
+        }
+
+        T* getData(){
+            return A;
         }
 
 
@@ -75,7 +80,7 @@ class Matrix {
 
 
     private:
-        double *A;
+        T *A;
         unsigned int N,  M;/**< M rows by N columns */
         void setNumRows (unsigned int numrows){
             M = numrows;
@@ -86,7 +91,8 @@ class Matrix {
         }
 };
 
-class Vector : public Matrix{
+template <class T>
+class Vector : public Matrix<T>{
     public:
         /** \brief Constructor to create Vector from C-style double array
          * \fn Vector(const double *in, unsigned int n)
@@ -96,14 +102,17 @@ class Vector : public Matrix{
          *
          */
 
-        Vector(const double *in, unsigned int n) : Matrix(in,n,1){};
-        Vector& transpose(){
-            unsigned int temp;
-            temp = getNumRows();
-            setNumRows(getNumCols());
-            setNumCols(temp);
-            return *this;
-        }
+        Vector(const T *in, unsigned int n) : Matrix<T>(in,n,1){};
+        Vector& transpose();
 };
+
+template <class T>
+Vector<T>& Vector<T>::transpose(){
+    unsigned int temp;
+    temp = Vector::getNumRows();
+    Vector::setNumRows(Vector::getNumCols());
+    Vector::setNumCols(temp);
+    return *this;
+}
 
 #endif // MATRIX_H

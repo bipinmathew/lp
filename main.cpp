@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include "matrix.h"
 
 template <class T, class Q>
@@ -32,19 +33,72 @@ class ILP : public PartialSolution{
     public:
         int eval(){ return 0;}
         int branch(){ return 0;}
-        Matrix& solve_simplex(Matrix &A, Vector &b, Vector &c);
+
+        /** \brief Minimize c'x st. Ax=b. Using Simplex Algorithm.
+         * \fn Vector& solve_simplex(Matrix &A, Vector &b, Vector &c);
+         * \param[in] A constraint matrix.
+         * \param[in] b constraint vector.
+         * \param[in] c cost vector.
+         * \return Minimizing vector.
+         *
+         */
+
+        Vector<double>& solve_simplex(Matrix<double> &A, Vector<double> &b, Vector<double> &c);
+        int solve_simplex(const double *A, const double *b, const double *c, unsigned int M, unsigned int N);
     private:
-        int find_bfs(Matrix &A, Matrix &b, Matrix &c);
-        Matrix& build_tableau(const Matrix &A, const Vector &b, const Vector &c);
+        int simplex_core(const Matrix<double> &A, const Vector<double> &b, Vector<double> *c, const Vector<unsigned int> &bv);
+
 };
 
-Matrix& ILP::build_tableau(const Matrix &A, const Vector &b, const Vector &c){
-    Matrix *Tbl = new Matrix(A);
-    return Tbl->appendColumn(b);
+int ILP::simplex_core(const Matrix<double> &A, const Vector<double> &b, Vector<double> *c, const Vector<unsigned int> &bv){
+    return(0);
 }
 
-Matrix& ILP::solve_simplex(Matrix &A, Vector &b, Vector &c){
-    return build_tableau(A,b,c);
+int ILP::solve_simplex(const double *A, const double *b, const double *c, unsigned int M, unsigned int N){
+    unsigned int i,j,k,*bv;
+    double *aa,*ca;
+    aa = (double *) calloc(M*(M+N),sizeof(double));
+    ca = (double *) calloc((M+N),sizeof(double));
+    bv = (unsigned int *) calloc(M,sizeof(unsigned int));
+    memcpy(aa,A,M*N*sizeof(double));
+
+
+    /* Lets now augment aa with the identity matrix, though these should be chased out of the basis eventually */
+    for(i=0;i<M;i++){
+        aa[(M*N)+(i*M)+i]=1;
+    }
+
+    k=0;
+    for(i=N;i<N+M;i++){
+        ca[i]=1;
+        bv[k++]=i;
+    }
+
+    Matrix<double> *Am = new Matrix<double>(aa,M,M+N);
+    Vector<double> *bm = new Vector<double>(ca,M);
+    Vector<double> *cm = new Vector<double>(b,M+N);
+    //Vector *bvm = new Vector(bv,M);
+
+    //simplex_core(aa,b,ca,bv,M,M+N);
+    //for(i=0;i<N+M;i++){
+    //    printf("%f ",ca[i]);
+    //}
+    //printf("\r\n\r\n");
+    //for(i=0;i<M;i++){
+     //   for(j=0;j<(M+N);j++){
+     //       printf("%f ",aa[(M*j)+i]);
+     //   }
+     //   printf("\r\n");
+    //}
+
+    free(aa);
+    free(ca);
+}
+
+
+Vector<double>& ILP::solve_simplex(Matrix<double> &A, Vector<double> &b, Vector<double> &c){
+    solve_simplex(A.getData(),b.getData(),c.getData(),A.getNumRows(),A.getNumCols());
+    return b;
 }
 
 using namespace std;
@@ -56,17 +110,17 @@ int main()
     double b[4] = {4,3};
     double c[3] = {4,1,1};
 
-    Matrix A(a,2,3);
-    Vector B(b,2);
-    Vector C(c,3);
+    Matrix<double> A(a,2,3);
+    Vector<double> B(b,2);
+    Vector<double> C(c,3);
 
-    A.appendRow(C).print();
+    A.print();
     B.print();
     C.print();
 
 
 
-    // (p->solve_simplex(A,B,C)).print();
+    (p->solve_simplex(A,B,C)).print();
 
 
     //Matrix A(a,3,3);
@@ -84,3 +138,4 @@ int main()
     M.printm(b,3,1);
     return 0;*/
 }
+
