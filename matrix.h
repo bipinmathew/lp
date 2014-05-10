@@ -67,7 +67,7 @@ class Matrix {
             return N;
         }
 
-        T* getData(){
+        T* getData() const{
             return A;
         }
 
@@ -104,6 +104,10 @@ class Vector : public Matrix<T>{
 
         Vector(const T *in, unsigned int n) : Matrix<T>(in,n,1){};
         Vector& transpose();
+        unsigned int length() const;
+        T operator[](const unsigned int i) const{
+            return((this->getData())[i]);
+        }
 };
 
 template <class T>
@@ -113,6 +117,11 @@ Vector<T>& Vector<T>::transpose(){
     Vector::setNumRows(Vector::getNumCols());
     Vector::setNumCols(temp);
     return *this;
+}
+
+template <class T>
+unsigned int Vector<T>::length() const {
+    return (Vector<T>::getNumRows()>Vector<T>::getNumCols()) ? Vector<T>::getNumRows() : Vector<T>::getNumCols();
 }
 
 #endif // MATRIX_H

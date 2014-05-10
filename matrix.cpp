@@ -86,6 +86,7 @@ Matrix<T>& Matrix<T>::appendRow(const Matrix &in){
     return *this;
 }
 
+
 template < >
 void Matrix<double>::print(){
     unsigned int i, j;

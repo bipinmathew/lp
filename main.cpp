@@ -46,11 +46,27 @@ class ILP : public PartialSolution{
         Vector<double>& solve_simplex(Matrix<double> &A, Vector<double> &b, Vector<double> &c);
         int solve_simplex(const double *A, const double *b, const double *c, unsigned int M, unsigned int N);
     private:
-        int simplex_core(const Matrix<double> &A, const Vector<double> &b, Vector<double> *c, const Vector<unsigned int> &bv);
+        int simplex_core(Matrix<double> &A, Vector<double> &b, Vector<double> &c, Vector<unsigned int> &bv);
+        Matrix<double>& submatrix(const Matrix<double> &A, const Vector<unsigned int> &bv) const;
 
 };
 
-int ILP::simplex_core(const Matrix<double> &A, const Vector<double> &b, Vector<double> *c, const Vector<unsigned int> &bv){
+Matrix<double>& ILP::submatrix(const Matrix<double> &A, const Vector<unsigned int> &bv) const{
+    unsigned int i,len;
+
+
+    len = bv.length();
+
+    printf("inside submatrix\r\n");
+    for(i=0;i<len;i++){
+        printf("getting cols: %d\r\n",bv[i]);
+    }
+    return *new Matrix<double>(A);
+}
+
+
+int ILP::simplex_core(Matrix<double> &A, Vector<double> &b, Vector<double> &c, Vector<unsigned int> &bv) {
+    submatrix(A,bv);
     return(0);
 }
 
@@ -77,19 +93,11 @@ int ILP::solve_simplex(const double *A, const double *b, const double *c, unsign
     Matrix<double> *Am = new Matrix<double>(aa,M,M+N);
     Vector<double> *bm = new Vector<double>(ca,M);
     Vector<double> *cm = new Vector<double>(b,M+N);
-    //Vector *bvm = new Vector(bv,M);
+    Vector<unsigned int> *bvm = new Vector<unsigned int>(bv,M);
 
-    //simplex_core(aa,b,ca,bv,M,M+N);
-    //for(i=0;i<N+M;i++){
-    //    printf("%f ",ca[i]);
-    //}
-    //printf("\r\n\r\n");
-    //for(i=0;i<M;i++){
-     //   for(j=0;j<(M+N);j++){
-     //       printf("%f ",aa[(M*j)+i]);
-     //   }
-     //   printf("\r\n");
-    //}
+    simplex_core(*Am,*bm,*cm,*bvm);
+
+
 
     free(aa);
     free(ca);
