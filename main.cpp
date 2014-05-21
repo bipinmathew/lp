@@ -5,7 +5,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include "lapacke.h"
+#include "cblas.h"
 #include "matrix.h"
+#include <assert.h>
 
 template <class T, class Q>
 class BB {
@@ -46,27 +49,108 @@ class ILP : public PartialSolution{
         Vector<double>& solve_simplex(Matrix<double> &A, Vector<double> &b, Vector<double> &c);
         int solve_simplex(const double *A, const double *b, const double *c, unsigned int M, unsigned int N);
     private:
-        int simplex_core(Matrix<double> &A, Vector<double> &b, Vector<double> &c, Vector<unsigned int> &bv);
-        Matrix<double>& submatrix(const Matrix<double> &A, const Vector<unsigned int> &bv) const;
+        int simplex_core(const double *A, const double *b, const double *c, unsigned int *bv, int M, int N);
+        int price(double *r, const double *A, const double *c, unsigned int *bv, unsigned int M);
+        void print_matrix(const double *A,unsigned int M, unsigned int N);
+        int in(double val,const double *A, unsigned int M, unsigned int N);
+        int copybycols(double *dest, const double *src,unsigned int *col, unsigned int M, unsigned int numcols);
 
 };
 
-Matrix<double>& ILP::submatrix(const Matrix<double> &A, const Vector<unsigned int> &bv) const{
-    unsigned int i,len;
+
+int ILP::price(double *r, const double *A, const double *c, unsigned int *bv, unsigned int M){
+    double *lambda, *B,*cbv;
+    int *pivot;
+    lambda = (double *)malloc(M*sizeof(double));
+    pivot = (int *)malloc(M*sizeof(int));
+    B = (double *)malloc(M*M*sizeof(double)); // basis
+    cbv = (double *)malloc(M*sizeof(double));
+
+    copybycols(B,A,bv,M,M);
+    copybycols(cbv,c,bv,1,M);
+
+    // compute LU factorization of B.
+    LAPACKE_dgetrf(LAPACK_COL_MAJOR,M,M,B,M,pivot);
+
+    // solve this system. cbv is now lambda.
+    LAPACKE_dgetrs(LAPACK_COL_MAJOR,'T',M,1,B,M,pivot,cbv,M);
+
+    cblas_ddot(M,cbv,1,&B[0],1);
 
 
-    len = bv.length();
 
-    printf("inside submatrix\r\n");
-    for(i=0;i<len;i++){
-        printf("getting cols: %d\r\n",bv[i]);
-    }
-    return *new Matrix<double>(A);
 }
 
 
-int ILP::simplex_core(Matrix<double> &A, Vector<double> &b, Vector<double> &c, Vector<unsigned int> &bv) {
-    submatrix(A,bv);
+void ILP::print_matrix(const double *A,unsigned int M, unsigned int N){
+    unsigned int i,j;
+    for(i=0;i<M;i++){
+        for(j=0;j<N;j++){
+            printf("%f\t",A[(j*M)+i]);
+        }
+        printf("\r\n");
+    }
+}
+
+int ILP::copybycols(double *dest, const double *src,unsigned int *col, unsigned int M, unsigned int numcols){
+    unsigned int i;
+    for(i=0;i<numcols;i++){
+        memcpy(&dest[i*M],&src[M*col[i]],M*sizeof(double));
+    }
+}
+
+
+
+int ILP::in(double val,const double *A, unsigned int M, unsigned int N){
+    unsigned int i;
+    for(i=0;i<M*N;i++){
+        if(A[i]==val)
+            return(1);
+    }
+    return(0);
+}
+
+
+int ILP::simplex_core(const double *A, const double *b, const double *c, unsigned int *bv, int M, int N) {
+    int i,j,numRHS=1,*pivot;
+    unsigned int *dv;
+    double *Bbv,*D,*cbv,*cdv,*lambda;
+
+    if(M>N){
+        assert(M>N);
+        printf("Number of rows must be larger than number of columns\r\n");
+        return(1);
+    }
+    
+
+    Bbv = (double *)malloc(M*M*sizeof(double)); // basis
+    D = (double *)malloc(M*(N-M)*sizeof(double)); // non-basis
+    cbv = (double *)malloc(M*sizeof(double));
+    cdv = (double *)malloc((N-M)*sizeof(double));
+    dv = (unsigned int *)malloc((N-M)*sizeof(unsigned int));
+    
+    lambda = (double *)malloc(M*sizeof(double));
+    pivot = (int *)malloc(M*sizeof(int));
+
+    price(cdv, A, c, bv, M);
+    // copy vector in basis to its own matrix.
+
+    copybycols(Bbv,A,bv,M,M);
+    copybycols(cbv,c,bv,1,M);
+    copybycols(D,A,dv,M,N-M);
+    copybycols(cdv,A,dv,1,N-M);
+
+    LAPACKE_dgesv(LAPACK_COL_MAJOR,M,numRHS,Bbv,M,pivot,cbv,M);
+    // cbv now has the value lambda.
+
+    printf("Printing matrix\r\n\r\n");
+
+    print_matrix(Bbv,M,M);
+    print_matrix(cbv,M,1);
+
+
+    free(Bbv);
+    free(cbv);
     return(0);
 }
 
@@ -90,17 +174,11 @@ int ILP::solve_simplex(const double *A, const double *b, const double *c, unsign
         bv[k++]=i;
     }
 
-    Matrix<double> *Am = new Matrix<double>(aa,M,M+N);
-    Vector<double> *bm = new Vector<double>(ca,M);
-    Vector<double> *cm = new Vector<double>(b,M+N);
-    Vector<unsigned int> *bvm = new Vector<unsigned int>(bv,M);
-
-    simplex_core(*Am,*bm,*cm,*bvm);
-
-
+    simplex_core(aa,b,ca,bv,M,M+N);
 
     free(aa);
     free(ca);
+    return 0;
 }
 
 
@@ -118,17 +196,20 @@ int main()
     double b[4] = {4,3};
     double c[3] = {4,1,1};
 
+
     Matrix<double> A(a,2,3);
     Vector<double> B(b,2);
     Vector<double> C(c,3);
 
-    A.print();
-    B.print();
-    C.print();
+    // A.print();
+    // B.print();
+    // C.print();
 
 
 
-    (p->solve_simplex(A,B,C)).print();
+
+
+    p->solve_simplex(A,B,C);
 
 
     //Matrix A(a,3,3);
