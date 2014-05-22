@@ -50,7 +50,7 @@ class ILP : public PartialSolution{
         int solve_simplex(const double *A, const double *b, const double *c, unsigned int M, unsigned int N);
     private:
         int simplex_core(const double *A, const double *b, const double *c, unsigned int *bv, int M, int N);
-        int price(double *r, const double *A, const double *c, unsigned int *bv, unsigned int M);
+        int price(double *r, const double *A, const double *c, unsigned int *bv, unsigned int M,unsigned int N);
         void print_matrix(const double *A,unsigned int M, unsigned int N);
         int in(double val,const double *A, unsigned int M, unsigned int N);
         int copybycols(double *dest, const double *src,unsigned int *col, unsigned int M, unsigned int numcols);
@@ -58,9 +58,10 @@ class ILP : public PartialSolution{
 };
 
 
-int ILP::price(double *r, const double *A, const double *c, unsigned int *bv, unsigned int M){
+int ILP::price(double *r, const double *A, const double *c, unsigned int *bv, unsigned int M,unsigned int N){
     double *lambda, *B,*cbv;
     int *pivot;
+    unsigned int i,k;
     lambda = (double *)malloc(M*sizeof(double));
     pivot = (int *)malloc(M*sizeof(int));
     B = (double *)malloc(M*M*sizeof(double)); // basis
@@ -75,7 +76,21 @@ int ILP::price(double *r, const double *A, const double *c, unsigned int *bv, un
     // solve this system. cbv is now lambda.
     LAPACKE_dgetrs(LAPACK_COL_MAJOR,'T',M,1,B,M,pivot,cbv,M);
 
-    cblas_ddot(M,cbv,1,&B[0],1);
+    printf("cbv: \r\n");
+    print_matrix(cbv,M,1);
+
+    printf("A: \r\n");
+    print_matrix(A,M,N);
+
+    k=0;
+    for(i=0;i<N;i++){
+        if(!in((double)i,(double *)bv,M,1)){
+            printf("not in basis: %d \r\n",i);
+            r[k++]=c[i]-cblas_ddot(M,cbv,1,&A[i*M],1);
+        }
+    }
+
+    //loop through non-basis vectors and compute price. 
 
 
 
@@ -132,21 +147,21 @@ int ILP::simplex_core(const double *A, const double *b, const double *c, unsigne
     lambda = (double *)malloc(M*sizeof(double));
     pivot = (int *)malloc(M*sizeof(int));
 
-    price(cdv, A, c, bv, M);
+    price(cdv, A, c, bv, M, N);
     // copy vector in basis to its own matrix.
 
-    copybycols(Bbv,A,bv,M,M);
-    copybycols(cbv,c,bv,1,M);
-    copybycols(D,A,dv,M,N-M);
-    copybycols(cdv,A,dv,1,N-M);
+    // copybycols(Bbv,A,bv,M,M);
+    // copybycols(cbv,c,bv,1,M);
+    // copybycols(D,A,dv,M,N-M);
+    // copybycols(cdv,A,dv,1,N-M);
 
-    LAPACKE_dgesv(LAPACK_COL_MAJOR,M,numRHS,Bbv,M,pivot,cbv,M);
+    //LAPACKE_dgesv(LAPACK_COL_MAJOR,M,numRHS,Bbv,M,pivot,cbv,M);
     // cbv now has the value lambda.
 
     printf("Printing matrix\r\n\r\n");
 
-    print_matrix(Bbv,M,M);
-    print_matrix(cbv,M,1);
+    //print_matrix(Bbv,M,M);
+    print_matrix(cdv,M,1);
 
 
     free(Bbv);
