@@ -48,7 +48,7 @@ class ILP : public PartialSolution{
          */
 
         Vector<double>& solve_simplex(Matrix<double> &A, Vector<double> &b, Vector<double> &c);
-        int solve_simplex(const double *A, double *b, double *c, unsigned int M, unsigned int N);
+        int solve_simplex(const double *A, const double *b, double *c, unsigned int M, unsigned int N);
     private:
         int simplex_core(const double *A, const double *b, double *c, unsigned int *bv, int M, int N);
         int price(double *r, unsigned int *dv, const double *A, const double *c, const unsigned int *bv, unsigned int M,unsigned int N);
@@ -62,27 +62,19 @@ class ILP : public PartialSolution{
 
 
 int ILP::getBasicSolution(const double *A,const unsigned int *bv,double *b,unsigned int M){
-    double *B,*btemp;
+    double *B;
     int i,*pivot;
 
     B = (double *)malloc(M*M*sizeof(double)); // basis
-    btemp = (double *)malloc(M*sizeof(double)); // basis
     pivot = (int *)malloc(M*sizeof(int));
 
-    memcpy(btemp,b,M*sizeof(double));
 
     copybycols(B,A,bv,M,M);
     // compute LU factorization of B.
     LAPACKE_dgetrf(LAPACK_COL_MAJOR,M,M,B,M,pivot);
 
     // solve this system. cbv is now lambda.
-    LAPACKE_dgetrs(LAPACK_COL_MAJOR,'N',M,1,B,M,pivot,btemp,M);
-
-    for(i=0;i<M;i++){
-        b[i] = btemp[i];
-    }
-
-    
+    LAPACKE_dgetrs(LAPACK_COL_MAJOR,'N',M,1,B,M,pivot,b,M);
 
     free(B);
     free(pivot);
@@ -115,16 +107,15 @@ int ILP::findBasisToLeave(const double *A,const double *b, const unsigned int j,
 }
 
 int ILP::price(double *r, unsigned int *dv, const double *A, const double *c, const unsigned int *bv, unsigned int M,unsigned int N){
-    double *lambda, *B,*cbv,*r_temp;
+    double *lambda, *B,*cbv;
     int *pivot;
     bool flag;
-    unsigned int i,j,k,*dv_temp;
+    unsigned int i,j,k;
     lambda = (double *)malloc(M*sizeof(double));
     pivot = (int *)malloc(M*sizeof(int));
     B = (double *)malloc(M*M*sizeof(double)); // basis
     cbv = (double *)malloc(M*sizeof(double));
-    r_temp = (double *)malloc((N-M)*sizeof(double));
-    dv_temp = (unsigned int *)malloc((N-M)*sizeof(unsigned int));
+
 
     copybycols(B,A,bv,M,M);
     copybycols(cbv,c,bv,1,M);
@@ -211,17 +202,12 @@ int ILP::simplex_core(const double *A, const double *b, double *c, unsigned int 
     
     price(r, dv, A, c, bv, M, N);
 
-    printf("r: \r\n");
-    print_matrix(r,N-M,1);
-
     while(0<=(dvidx=findBasisToEnter(r,N-M))){
         j=dv[dvidx];
         if((k=findBasisToLeave(A,bcpy,j,M))<0){
             printf("Problem is unbounded from below.");
             exit(1);
         }
-
-        printf("Basis to enter: %d Basis to leave: %d \r\n",j,bv[k]);
 
         dv[dvidx]=bv[k];
         bv[k]=j;
@@ -232,8 +218,6 @@ int ILP::simplex_core(const double *A, const double *b, double *c, unsigned int 
 
         price(r, dv, A, c, bv, M, N);
         
-        printf("r: \r\n");
-        print_matrix(r,N-M,1);
 
     }
 
@@ -245,11 +229,12 @@ int ILP::simplex_core(const double *A, const double *b, double *c, unsigned int 
 
     free(r);
     free(dv);
+    free(bcpy);
 
     return(0);
 }
 
-int ILP::solve_simplex(const double *A, double *b, double *c, unsigned int M, unsigned int N){
+int ILP::solve_simplex(const double *A, const double *b, double *c, unsigned int M, unsigned int N){
     unsigned int i,j,k,*bv;
     double *aa,*ca;
     aa = (double *) calloc(M*(M+N),sizeof(double));
@@ -269,30 +254,15 @@ int ILP::solve_simplex(const double *A, double *b, double *c, unsigned int M, un
         bv[k++]=i;
     }
 
+    // Solve the phase I problem. to obtail and BFS
     simplex_core(aa,b,ca,bv,M,M+N);
 
-    printf("Solution to part I: c\r\n");
-
-    print_matrix(ca,N+M,1);
-
-    printf("Solution to part I: bv\r\n");
-
-    for(i=0;i<M;i++){
-        printf("%d ",bv[i]);
-    }
-
-
+    // Take that BFS and solve the original problem.
     simplex_core(A,b,c,bv,M,N);
-
-    printf("\r\nSolution to part II: \r\n");
 
     print_matrix(c,N,1);
 
-    printf("Solution to part II: bv\r\n");
 
-    for(i=0;i<M;i++){
-        printf("%d ",bv[i]);
-    }
 
 
 
