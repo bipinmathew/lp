@@ -48,9 +48,9 @@ class ILP : public PartialSolution{
          */
 
         Vector<double>& solve_simplex(Matrix<double> &A, Vector<double> &b, Vector<double> &c);
-        int solve_simplex(const double *A, double *b, const double *c, unsigned int M, unsigned int N);
+        int solve_simplex(const double *A, double *b, double *c, unsigned int M, unsigned int N);
     private:
-        int simplex_core(const double *A, double *b, const double *c, unsigned int *bv, int M, int N);
+        int simplex_core(const double *A, const double *b, double *c, unsigned int *bv, int M, int N);
         int price(double *r, unsigned int *dv, const double *A, const double *c, const unsigned int *bv, unsigned int M,unsigned int N);
         void print_matrix(const double *A,unsigned int M, unsigned int N);
         int findBasisToEnter(const double *r,unsigned int N);
@@ -62,18 +62,26 @@ class ILP : public PartialSolution{
 
 
 int ILP::getBasicSolution(const double *A,const unsigned int *bv,double *b,unsigned int M){
-    double *B;
-    int *pivot;
+    double *B,*btemp;
+    int i,*pivot;
 
     B = (double *)malloc(M*M*sizeof(double)); // basis
+    btemp = (double *)malloc(M*sizeof(double)); // basis
     pivot = (int *)malloc(M*sizeof(int));
+
+    memcpy(btemp,b,M*sizeof(double));
 
     copybycols(B,A,bv,M,M);
     // compute LU factorization of B.
     LAPACKE_dgetrf(LAPACK_COL_MAJOR,M,M,B,M,pivot);
 
     // solve this system. cbv is now lambda.
-    LAPACKE_dgetrs(LAPACK_COL_MAJOR,'N',M,1,B,M,pivot,b,M);
+    LAPACKE_dgetrs(LAPACK_COL_MAJOR,'N',M,1,B,M,pivot,btemp,M);
+
+    for(i=0;i<M;i++){
+        b[i] = btemp[i];
+    }
+
     
 
     free(B);
@@ -107,14 +115,16 @@ int ILP::findBasisToLeave(const double *A,const double *b, const unsigned int j,
 }
 
 int ILP::price(double *r, unsigned int *dv, const double *A, const double *c, const unsigned int *bv, unsigned int M,unsigned int N){
-    double *lambda, *B,*cbv;
+    double *lambda, *B,*cbv,*r_temp;
     int *pivot;
     bool flag;
-    unsigned int i,j,k;
+    unsigned int i,j,k,*dv_temp;
     lambda = (double *)malloc(M*sizeof(double));
     pivot = (int *)malloc(M*sizeof(int));
     B = (double *)malloc(M*M*sizeof(double)); // basis
     cbv = (double *)malloc(M*sizeof(double));
+    r_temp = (double *)malloc((N-M)*sizeof(double));
+    dv_temp = (unsigned int *)malloc((N-M)*sizeof(unsigned int));
 
     copybycols(B,A,bv,M,M);
     copybycols(cbv,c,bv,1,M);
@@ -124,17 +134,10 @@ int ILP::price(double *r, unsigned int *dv, const double *A, const double *c, co
 
     // solve this system. cbv is now lambda.
     LAPACKE_dgetrs(LAPACK_COL_MAJOR,'T',M,1,B,M,pivot,cbv,M);
+    for(i=0;i<M;i++){
+        lambda[i] = cbv[i];
+    }
 
-    printf("bv: \r\n");
-    for(i=0;i<M;i++)
-        printf("%d ",bv[i]);
-
-    printf("\r\n");
-
-    printf("A: \r\n");
-    print_matrix(A,M,N);
-
-    printf("N: %d \r\n",N);
 
     k=0;
     for(i=0;i<N;i++){
@@ -150,13 +153,15 @@ int ILP::price(double *r, unsigned int *dv, const double *A, const double *c, co
 
         // if not compute price. 
         if(!flag){
-          printf("not in basis: %d \r\n",i);
-          r[k]=c[i]-cblas_ddot(M,cbv,1,&A[i*M],1);
+          r[k]=c[i]-cblas_ddot(M,lambda,1,&A[i*M],1);
           dv[k] = i;
           k++;
         }
+
+        
         
     }
+
 
     //loop through non-basis vectors and compute price. 
 
@@ -185,9 +190,9 @@ int ILP::copybycols(double *dest, const double *src,const unsigned int *col, uns
     }
 }
 
-int ILP::simplex_core(const double *A, double *b, const double *c, unsigned int *bv, int M, int N) {
+int ILP::simplex_core(const double *A, const double *b, double *c, unsigned int *bv, int M, int N) {
     int i,j,k;
-    double *r;
+    double *r,*bcpy;
     unsigned int *dv;
     int dvidx;
 
@@ -200,37 +205,42 @@ int ILP::simplex_core(const double *A, double *b, const double *c, unsigned int 
 
     r = (double *)malloc((N-M)*sizeof(double));
     dv = (unsigned int *)malloc((N-M)*sizeof(unsigned int));
-    
+    bcpy = (double *)malloc(M*sizeof(double));
 
+    memcpy(bcpy,b,M*sizeof(double));
+    
     price(r, dv, A, c, bv, M, N);
+
+    printf("r: \r\n");
+    print_matrix(r,N-M,1);
+
     while(0<=(dvidx=findBasisToEnter(r,N-M))){
-        printf("dvidx: %d\r\n",dvidx);
         j=dv[dvidx];
-        printf("Basis to leave: %d \r\n",j);
-        if((k=findBasisToLeave(A,b,j,M))<0){
+        if((k=findBasisToLeave(A,bcpy,j,M))<0){
             printf("Problem is unbounded from below.");
             exit(1);
         }
+
+        printf("Basis to enter: %d Basis to leave: %d \r\n",j,bv[k]);
 
         dv[dvidx]=bv[k];
         bv[k]=j;
 
         // b = linsolve(A(:,bv),b)
 
-        getBasicSolution(A,bv,b,M);
+        getBasicSolution(A,bv,bcpy,M);
 
         price(r, dv, A, c, bv, M, N);
+        
+        printf("r: \r\n");
+        print_matrix(r,N-M,1);
 
     }
 
-    printf("Printing matrix\r\n\r\n");
-
-    print_matrix(b,M,1);
-
-    printf("Basis vectors: \r\n\r\n");
-
+    
+    memset(c,0,N*sizeof(double));
     for(i=0;i<M;i++){
-        printf("%d ",bv[i]);
+        c[bv[i]]=bcpy[i];
     }
 
     free(r);
@@ -239,7 +249,7 @@ int ILP::simplex_core(const double *A, double *b, const double *c, unsigned int 
     return(0);
 }
 
-int ILP::solve_simplex(const double *A, double *b, const double *c, unsigned int M, unsigned int N){
+int ILP::solve_simplex(const double *A, double *b, double *c, unsigned int M, unsigned int N){
     unsigned int i,j,k,*bv;
     double *aa,*ca;
     aa = (double *) calloc(M*(M+N),sizeof(double));
@@ -260,6 +270,31 @@ int ILP::solve_simplex(const double *A, double *b, const double *c, unsigned int
     }
 
     simplex_core(aa,b,ca,bv,M,M+N);
+
+    printf("Solution to part I: c\r\n");
+
+    print_matrix(ca,N+M,1);
+
+    printf("Solution to part I: bv\r\n");
+
+    for(i=0;i<M;i++){
+        printf("%d ",bv[i]);
+    }
+
+
+    simplex_core(A,b,c,bv,M,N);
+
+    printf("\r\nSolution to part II: \r\n");
+
+    print_matrix(c,N,1);
+
+    printf("Solution to part II: bv\r\n");
+
+    for(i=0;i<M;i++){
+        printf("%d ",bv[i]);
+    }
+
+
 
     free(aa);
     free(ca);
@@ -287,31 +322,8 @@ int main()
     Vector<double> B(b,2);
     Vector<double> C(c,3);
 
-    // A.print();
-    // B.print();
-    // C.print();
-
-
-
-
-
     p->solve_simplex(A,B,C);
 
-
-    //Matrix A(a,3,3);
-    //A.print();
-    //A.pivot(0,0).pivot(1,1).appendRow(c).appendColumn(b).print();
-    //A.print();
-    /* double b[3] = {9,1,35};
-    ILP PS;
-    BB< ILP,std::stack<ILP> > ILPSolver;
-    Matrix M;
-    M.printm(A,3,3);
-    M.pivot(A,b,3,3,0,0);
-
-    M.printm(A,3,3);
-    M.printm(b,3,1);
-    return 0;*/
 
     delete p;
 }
