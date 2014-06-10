@@ -9,7 +9,10 @@
 #include "lapacke.h"
 #include "cblas.h"
 #include "matrix.h"
+#include <unordered_map>
 #include <assert.h>
+
+using namespace std;
 
 template <class T, class Q>
 class BB {
@@ -37,6 +40,7 @@ class ILP : public PartialSolution{
     public:
         int eval(){ return 0;}
         int branch(){ return 0;}
+        void print_matrix(const double *A,unsigned int M, unsigned int N);
 
         /** \brief Minimize c'x st. Ax=b. Using Simplex Algorithm.
          * \fn Vector& solve_simplex(Matrix &A, Vector &b, Vector &c);
@@ -52,7 +56,6 @@ class ILP : public PartialSolution{
     private:
         int simplex_core(const double *A, const double *b, double *c, unsigned int *bv, int M, int N);
         int price(double *r, unsigned int *dv, const double *A, const double *c, const unsigned int *bv, unsigned int M,unsigned int N);
-        void print_matrix(const double *A,unsigned int M, unsigned int N);
         int findBasisToEnter(const double *r,unsigned int N);
         int findBasisToLeave(const double *A,const double *b, const unsigned int j, unsigned int M);
         int getBasicSolution(const double *A,const unsigned int *bv, double *b,unsigned int M);
@@ -278,23 +281,195 @@ Vector<double>& ILP::solve_simplex(Matrix<double> &A, Vector<double> &b, Vector<
     return b;
 }
 
-using namespace std;
+
+#define NAMECARD 0
+#define ROWCARD 1
+#define COLCARD 2
+#define RHSCARD 3
+#define BOUNDCARD 4
+
+
+class Constraint {
+    public:
+        int setName(char *n);
+        int setType(const char t);
+        int setNum(const unsigned int num);
+        string& getName();
+        char getType();
+        unsigned int getNum();
+        Constraint(char *n, const char t,const unsigned int num);
+    private:
+        string name;
+        char type;
+        unsigned int num;
+};
+
+Constraint::Constraint(char *n, const char t,const unsigned int num){
+    setName(n);
+    setType(t);
+    setNum(num);
+}
+
+int Constraint::setName(char *n){
+    name=n;
+}
+
+int Constraint::setType(const char t){
+    type = t;
+}
+
+int Constraint::setNum(const unsigned int n){
+    num=n;
+}
+
+string& Constraint::getName(){
+    return name;
+}
+
+char Constraint::getType(){
+    return type;
+}
+
+unsigned int Constraint::getNum(){
+    return num;
+}
+
+class Variable {
+};
+
+
+unsigned int stris(const char *s1,const char *s2){
+    return(strncmp(s1,s2,strlen(s2))==0);
+}
 
 int main()
 {
+    FILE *fp;
     ILP *p = new ILP;
-    double a[9] = {2,1,2,3,3,1};
-    double b[4] = {4,3};
-    double c[3] = {4,1,1};
+    //double a[9] = {2,1,2,3,3,1};
+    //double b[4] = {4,3};
+    //double c[3] = {4,1,1};
+    char str[1024];
+    char chardata[1024],name[1024],type;
+    char varname[1024], constraint1[1024], constraint2[1024];
+    double f1,f2;
+    unsigned int card,numVars=0,numConstraints=0,numvars,k;
+    double *A,*b,*c;
+    A = NULL;
+    unordered_map<string,Constraint * > ConstraintSet;
+    unordered_map<string,Variable * > VariableSet;
 
-
-    Matrix<double> A(a,2,3);
+    /* Matrix<double> A(a,2,3);
     Vector<double> B(b,2);
     Vector<double> C(c,3);
 
-    p->solve_simplex(A,B,C);
+    p->solve_simplex(A,B,C); */
+
+    fp = fopen("./data/test.mps","r");
+
+    while(!feof(fp)){
+        fgets(str,1024,fp);
+        if(stris(str,"ENDATA")){
+            break;
+        }
+        else if(str[0]=='*'){
+            continue;
+        }
+        else if(str[0]!=' '){
+            if(stris(str,"NAME")){
+                card=NAMECARD;
+                sscanf(str,"%s %s",chardata,name);
+                printf("GOT: %s , %s\r\n",chardata,name);
+            }
+            else if(stris(str,"ROWS")){
+                card=ROWCARD;
+            }
+            else if(stris(str,"COLUMNS")){
+                card=COLCARD;
+            }
+            else if(stris(str,"RHS")){
+                card=RHSCARD;
+            }
+            else if(stris(str,"BOUNDS")){
+                card=BOUNDCARD;
+            }
+        }
+        else if(str[0]==' '){
+            switch(card){
+                case NAMECARD:
+                    printf("  manage name card\r\n");
+                break;
+                case ROWCARD:
+                    if(sscanf(str," %c %s",&type,chardata) != 2){
+                        printf("Parse eror in ROWCARD");
+                        exit(1);
+                    }
+                    if(type!='N'){
+                        ConstraintSet[chardata] = new Constraint(chardata,type,numConstraints++);
+                    }
+                    if(type=='N'){
+                        printf("Got N Type!\r\n");
+                    }
+                break;
+                case COLCARD:
+                    numvars=sscanf(str," %s %s %lf %s %lf",varname, constraint1, &f1, constraint2, &f2);
+
+                    printf("Got numvars: %d\r\n",numvars);
 
 
+                    /* Need to add logic to dynamically enlarge the A matrix as necessary. */
+                    if(3<=numvars){
+                        if(ConstraintSet.end() != ConstraintSet.find(constraint1)){
+                            if(VariableSet.end() == VariableSet.find(varname)){
+                                numVars++;
+                                VariableSet[varname] = new Variable();
+                                A = (double *)realloc(A,numVars*numConstraints*sizeof(double));
+                            }
+                            A[((numVars-1)*numConstraints)+ConstraintSet[constraint1]->getNum()] = f1;
+                        }
+                    }
+                    if(5==numvars){
+                        if(ConstraintSet.end() != ConstraintSet.find(constraint2)){
+                            if(VariableSet.end() == VariableSet.find(varname)){
+                                numVars++;
+                                VariableSet[varname] = new Variable();
+                                A = (double *)realloc(A,numVars*numConstraints*sizeof(double));
+                            }
+                            A[((numVars-1)*numConstraints)+ConstraintSet[constraint2]->getNum()] = f2;
+                        }
+                    }
+                    if((numvars!=3) && (numvars!=5)){
+                        printf("Parse error in Column Card.");
+                        exit(1);
+                    }
+
+                break;
+                case RHSCARD:
+                    printf("  manage rhs card\r\n");
+                break;
+                case BOUNDCARD:
+                    printf("  manage bound card\r\n");
+                break;
+                default:
+                    printf("  unknown card\r\n");
+                break;
+            }
+        }
+        else{
+            printf("Parse error\r\n");
+            return(0);
+        }
+        // printf("%s",str);
+    }
+
+   printf("Printing matrix of %d rows and %d cols...\r\n",numConstraints,numVars); 
+    p->print_matrix(A,numConstraints,numVars);
+    // for(auto& x: ConstraintSet){
+    //     cout << "key: " << x.first << " name: " << x.second->getName() << " type: " << x.second->getType() << " num: " << x.second->getNum() << endl;
+
+    // }
+
+    fclose(fp);
     delete p;
 }
 
