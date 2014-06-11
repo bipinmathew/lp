@@ -66,7 +66,7 @@ class ILP : public PartialSolution{
 
 int ILP::getBasicSolution(const double *A,const unsigned int *bv,double *b,unsigned int M){
     double *B;
-    int i,*pivot;
+    int *pivot;
 
     B = (double *)malloc(M*M*sizeof(double)); // basis
     pivot = (int *)malloc(M*sizeof(int));
@@ -81,11 +81,12 @@ int ILP::getBasicSolution(const double *A,const unsigned int *bv,double *b,unsig
 
     free(B);
     free(pivot);
+    return(0);
 }
 
 
 int ILP::findBasisToEnter(const double *r,unsigned int N){
-    int i;
+    unsigned int i;
     for(i=0;i<N;i++){
         if(r[i]<0)
             return(i);
@@ -96,7 +97,8 @@ int ILP::findBasisToEnter(const double *r,unsigned int N){
 int ILP::findBasisToLeave(const double *A,const double *b, const unsigned int j,unsigned int M){
     double ratio;
     double min_ratio;
-    int i,i_out = -1;
+    unsigned int i;
+    int i_out = -1;
     min_ratio = INFINITY;
     for(i=0;i<M;i++){
         if((ratio=b[i]/A[(j*M)+i])>0){
@@ -163,6 +165,7 @@ int ILP::price(double *r, unsigned int *dv, const double *A, const double *c, co
    free(lambda);
    free(cbv);
    free(B);
+   return(0);
 
 }
 
@@ -182,6 +185,7 @@ int ILP::copybycols(double *dest, const double *src,const unsigned int *col, uns
     for(i=0;i<numcols;i++){
         memcpy(&dest[i*M],&src[M*col[i]],M*sizeof(double));
     }
+    return(0);
 }
 
 int ILP::simplex_core(const double *A, const double *b, double *c, unsigned int *bv, int M, int N) {
@@ -238,7 +242,7 @@ int ILP::simplex_core(const double *A, const double *b, double *c, unsigned int 
 }
 
 int ILP::solve_simplex(const double *A, const double *b, double *c, unsigned int M, unsigned int N){
-    unsigned int i,j,k,*bv;
+    unsigned int i,k,*bv;
     double *aa,*ca;
     aa = (double *) calloc(M*(M+N),sizeof(double));
     ca = (double *) calloc((M+N),sizeof(double));
@@ -312,14 +316,17 @@ Constraint::Constraint(char *n, const char t,const unsigned int num){
 
 int Constraint::setName(char *n){
     name=n;
+    return(0);
 }
 
 int Constraint::setType(const char t){
     type = t;
+    return(0);
 }
 
 int Constraint::setNum(const unsigned int n){
     num=n;
+    return(0);
 }
 
 string& Constraint::getName(){
@@ -355,31 +362,16 @@ unsigned int stris(const char *s1,const char *s2){
     return(strncmp(s1,s2,strlen(s2))==0);
 }
 
-int main()
-{
-    FILE *fp;
-    ILP *p = new ILP;
-    //double a[9] = {2,1,2,3,3,1};
-    //double b[4] = {4,3};
-    //double c[3] = {4,1,1};
+unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unsigned int &numConstraints, unsigned int &numVars){
     char str[1024];
     char chardata[1024],name[1024],type;
     char varname[1024], constraint1[1024], constraint2[1024];
     double f1,f2;
-    unsigned int card,numVars=0,numConstraints=0,numcols,lineno=0;
-    double *A,*b,*c;
-    A = NULL;
-    c = NULL;
+    unsigned int card,numRows=0,numcols,lineno=0;
+    numVars = 0;
+    numConstraints = 0;
     unordered_map<string,Constraint * > ConstraintSet;
     unordered_map<string,Variable * > VariableSet;
-
-    /* Matrix<double> A(a,2,3);
-    Vector<double> B(b,2);
-    Vector<double> C(c,3);
-
-    p->solve_simplex(A,B,C); */
-
-    fp = fopen("./data/test.mps","r");
 
     while(!feof(fp)){
         fgets(str,1024,fp);
@@ -401,6 +393,7 @@ int main()
             }
             else if(stris(str,"COLUMNS")){
                 card=COLCARD;
+                numConstraints = numRows-1;
             }
             else if(stris(str,"RHS")){
                 card=RHSCARD;
@@ -419,8 +412,7 @@ int main()
                         printf("Parse eror in ROWCARD");
                         exit(1);
                     }
-                    if(type!='N')
-                        ConstraintSet[chardata] = new Constraint(chardata,type,numConstraints++);
+                    ConstraintSet[chardata] = new Constraint(chardata,type,numRows++);
                 break;
                 case COLCARD:
                     numcols=sscanf(str," %s %s %lf %s %lf",varname, constraint1, &f1, constraint2, &f2);
@@ -432,7 +424,7 @@ int main()
                         VariableSet[varname] = new Variable(numVars);
                         numVars++;
                         A = (double *)realloc(A,numVars*numConstraints*sizeof(double));
-                        //c = (double *)realloc(c,numVars*sizeof(double));
+                        c = (double *)realloc(c,numVars*sizeof(double));
                     }
 
                     /* Need to add logic to dynamically enlarge the A matrix as necessary. */
@@ -443,13 +435,13 @@ int main()
                                     c[VariableSet[varname]->getNum()] = f1;
                                 break;
                                 case 'L':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = f1;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()-1] = f1;
                                 break;
                                 case 'E':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = f1;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()-1] = f1;
                                 break;
                                 case 'G':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = -f1;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()-1] = -f1;
                                 break;
                                 default:
                                     printf("Unknown constraint type online %d",lineno);
@@ -462,16 +454,16 @@ int main()
                         if(ConstraintSet.end() != ConstraintSet.find(constraint2)){
                             switch(ConstraintSet[constraint2]->getType()){
                                 case 'N':
-                                    //c[VariableSet[varname]->getNum()] = f2;
+                                    c[VariableSet[varname]->getNum()] = f2;
                                 break;
                                 case 'L':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = f2;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()-1] = f2;
                                 break;
                                 case 'E':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = f2;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()-1] = f2;
                                 break;
                                 case 'G':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = -f2;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()-1] = -f2;
                                 break;
                                 default:
                                     printf("Unknown constraint type online %d",lineno);
@@ -500,14 +492,37 @@ int main()
         // printf("%s",str);
     }
 
-   printf("Printing matrix of %d rows and %d cols...\r\n",numConstraints,numVars); 
-    p->print_matrix(A,numConstraints,numVars);
-    // for(auto& x: ConstraintSet){
-    //     cout << "key: " << x.first << " name: " << x.second->getName() << " type: " << x.second->getType() << " num: " << x.second->getNum() << endl;
+    return(0);
+}
 
-    // }
+int main(int argc, char **argv)
+{
+    FILE *fp;
+    ILP *p = new ILP;
+    unsigned int numConstraints,numVars;
+    //double a[9] = {2,1,2,3,3,1};
+    //double b[4] = {4,3};
+    //double c[3] = {4,1,1};
+    double *A,*b,*c;
+    A = b = c = NULL;
+
+
+    fp = fopen("./data/test.mps","r");
+    readMPS(fp,A,b,c,numConstraints,numVars);
+
+   printf("Printing matrix of %d rows and %d cols...\r\n",numConstraints,numVars); 
+   p->print_matrix(A,numConstraints,numVars);
+   p->print_matrix(c,numVars,1);
+
+    delete p;
 
     fclose(fp);
-    delete p;
+
+    /* Matrix<double> A(a,2,3);
+    Vector<double> B(b,2);
+    Vector<double> C(c,3);
+
+    p->solve_simplex(A,B,C); */
+
 }
 
