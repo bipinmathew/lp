@@ -335,8 +335,21 @@ unsigned int Constraint::getNum(){
 }
 
 class Variable {
+    public:
+        Variable(unsigned int n){ setNum(n); };
+        unsigned int setNum(unsigned int n);
+        unsigned int getNum();
+    private:
+        unsigned int num;
 };
 
+unsigned int Variable::setNum(unsigned int n){
+    return num = n;
+}
+
+unsigned int Variable::getNum(){
+    return num;
+}
 
 unsigned int stris(const char *s1,const char *s2){
     return(strncmp(s1,s2,strlen(s2))==0);
@@ -353,9 +366,10 @@ int main()
     char chardata[1024],name[1024],type;
     char varname[1024], constraint1[1024], constraint2[1024];
     double f1,f2;
-    unsigned int card,numVars=0,numConstraints=0,numvars,k;
+    unsigned int card,numVars=0,numConstraints=0,numcols,lineno=0;
     double *A,*b,*c;
     A = NULL;
+    c = NULL;
     unordered_map<string,Constraint * > ConstraintSet;
     unordered_map<string,Variable * > VariableSet;
 
@@ -369,6 +383,7 @@ int main()
 
     while(!feof(fp)){
         fgets(str,1024,fp);
+        lineno++;
         if(stris(str,"ENDATA")){
             break;
         }
@@ -404,43 +419,66 @@ int main()
                         printf("Parse eror in ROWCARD");
                         exit(1);
                     }
-                    if(type!='N'){
+                    if(type!='N')
                         ConstraintSet[chardata] = new Constraint(chardata,type,numConstraints++);
-                    }
-                    if(type=='N'){
-                        printf("Got N Type!\r\n");
-                    }
                 break;
                 case COLCARD:
-                    numvars=sscanf(str," %s %s %lf %s %lf",varname, constraint1, &f1, constraint2, &f2);
-
-                    printf("Got numvars: %d\r\n",numvars);
-
+                    numcols=sscanf(str," %s %s %lf %s %lf",varname, constraint1, &f1, constraint2, &f2);
+                    if((numcols!=3) && (numcols!=5)){
+                        printf("Parse error in Column Card on line: %d",lineno);
+                        exit(1);
+                    }
+                    if(VariableSet.end() == VariableSet.find(varname)){
+                        VariableSet[varname] = new Variable(numVars);
+                        numVars++;
+                        A = (double *)realloc(A,numVars*numConstraints*sizeof(double));
+                        //c = (double *)realloc(c,numVars*sizeof(double));
+                    }
 
                     /* Need to add logic to dynamically enlarge the A matrix as necessary. */
-                    if(3<=numvars){
+                    if(3<=numcols){
                         if(ConstraintSet.end() != ConstraintSet.find(constraint1)){
-                            if(VariableSet.end() == VariableSet.find(varname)){
-                                numVars++;
-                                VariableSet[varname] = new Variable();
-                                A = (double *)realloc(A,numVars*numConstraints*sizeof(double));
+                            switch(ConstraintSet[constraint1]->getType()){
+                                case 'N':
+                                    c[VariableSet[varname]->getNum()] = f1;
+                                break;
+                                case 'L':
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = f1;
+                                break;
+                                case 'E':
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = f1;
+                                break;
+                                case 'G':
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = -f1;
+                                break;
+                                default:
+                                    printf("Unknown constraint type online %d",lineno);
+                                    return(1);
+                                break;
                             }
-                            A[((numVars-1)*numConstraints)+ConstraintSet[constraint1]->getNum()] = f1;
                         }
                     }
-                    if(5==numvars){
+                    if(5==numcols){
                         if(ConstraintSet.end() != ConstraintSet.find(constraint2)){
-                            if(VariableSet.end() == VariableSet.find(varname)){
-                                numVars++;
-                                VariableSet[varname] = new Variable();
-                                A = (double *)realloc(A,numVars*numConstraints*sizeof(double));
+                            switch(ConstraintSet[constraint2]->getType()){
+                                case 'N':
+                                    //c[VariableSet[varname]->getNum()] = f2;
+                                break;
+                                case 'L':
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = f2;
+                                break;
+                                case 'E':
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = f2;
+                                break;
+                                case 'G':
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = -f2;
+                                break;
+                                default:
+                                    printf("Unknown constraint type online %d",lineno);
+                                    return(1);
+                                break;
                             }
-                            A[((numVars-1)*numConstraints)+ConstraintSet[constraint2]->getNum()] = f2;
                         }
-                    }
-                    if((numvars!=3) && (numvars!=5)){
-                        printf("Parse error in Column Card.");
-                        exit(1);
                     }
 
                 break;
@@ -451,12 +489,12 @@ int main()
                     printf("  manage bound card\r\n");
                 break;
                 default:
-                    printf("  unknown card\r\n");
+                    printf("  unknown card on line %d\r\n",lineno);
                 break;
             }
         }
         else{
-            printf("Parse error\r\n");
+            printf("Parse error on line %d\r\n",lineno);
             return(0);
         }
         // printf("%s",str);
