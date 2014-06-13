@@ -361,8 +361,8 @@ unsigned int stris(const char *s1,const char *s2){
 unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<string,Entity * > &ConstraintSet , unordered_map<string, Entity * > &VariableSet ){
     char str[1024];
     char chardata[1024],name[1024],type;
-    char varname[1024], constraint1[1024], constraint2[1024];
-    double f1,f2;
+    char varname[1024], constraint[2][1024];
+    double f[2];
     unsigned int card,numRows=0,numcols,lineno=0;
     unsigned int numVars = 0, numConstraints = 0;
     string cost;
@@ -413,7 +413,7 @@ unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<s
                         cost = chardata;
                 break;
                 case COLCARD:
-                    numcols=sscanf(str," %s %s %lf %s %lf",varname, constraint1, &f1, constraint2, &f2);
+                    numcols=sscanf(str," %s %s %lf %s %lf",varname, constraint[0], &f[0], constraint[1], &f[1]);
                     if((numcols!=3) && (numcols!=5)){
                         printf("Parse error in Column Card on line: %d",lineno);
                         exit(1);
@@ -427,16 +427,16 @@ unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<s
 
                     /* Need to add logic to dynamically enlarge the A matrix as necessary. */
                     if(3<=numcols){
-                        if(ConstraintSet.end() != ConstraintSet.find(constraint1)){
-                            switch(ConstraintSet[constraint1]->getType()){
+                        if(ConstraintSet.end() != ConstraintSet.find(constraint[0])){
+                            switch(ConstraintSet[constraint[0]]->getType()){
                                 case 'L':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = f1;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[0]]->getNum()] = f[0];
                                 break;
                                 case 'E':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = f1;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[0]]->getNum()] = f[0];
                                 break;
                                 case 'G':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint1]->getNum()] = -f1;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[0]]->getNum()] = -f[0];
                                 break;
                                 default:
                                     printf("Unknown constraint type online %d",lineno);
@@ -444,21 +444,21 @@ unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<s
                                 break;
                             }
                         }
-                        else if(cost==constraint1){
-                            c[VariableSet[varname]->getNum()] = f1;
+                        else if(cost==constraint[0]){
+                            c[VariableSet[varname]->getNum()] = f[0];
                         }
                     }
                     if(5==numcols){
-                        if(ConstraintSet.end() != ConstraintSet.find(constraint2)){
-                            switch(ConstraintSet[constraint2]->getType()){
+                        if(ConstraintSet.end() != ConstraintSet.find(constraint[1])){
+                            switch(ConstraintSet[constraint[1]]->getType()){
                                 case 'L':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = f2;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[1]]->getNum()] = f[1];
                                 break;
                                 case 'E':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = f2;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[1]]->getNum()] = f[1];
                                 break;
                                 case 'G':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint2]->getNum()] = -f2;
+                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[1]]->getNum()] = -f[1];
                                 break;
                                 default:
                                     printf("Unknown constraint type online %d",lineno);
@@ -466,8 +466,8 @@ unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<s
                                 break;
                             }
                         }
-                        else if(cost==constraint1){
-                            c[VariableSet[varname]->getNum()] = f2;
+                        else if(cost==constraint[1]){
+                            c[VariableSet[varname]->getNum()] = f[1];
                         }
 
                     }
