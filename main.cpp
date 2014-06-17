@@ -358,12 +358,12 @@ unsigned int stris(const char *s1,const char *s2){
     return(strncmp(s1,s2,strlen(s2))==0);
 }
 
-unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<string,Entity * > &ConstraintSet , unordered_map<string, Entity * > &VariableSet ){
+unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<string,Entity * > &ConstraintSet , unordered_map<string, Entity * > &VariableSet , unordered_map<string, Entity * > &RHSSet ){
     char str[1024];
     char chardata[1024],name[1024],type;
     char varname[1024], constraint[2][1024];
     double f[2];
-    unsigned int card,numRows=0,numcols,lineno=0;
+    unsigned int card,numcols,lineno=0,i;
     unsigned int numVars = 0, numConstraints = 0;
     string cost;
     numVars = 0;
@@ -391,6 +391,7 @@ unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<s
                 card=COLCARD;
             }
             else if(stris(str,"RHS")){
+                numVars=0;
                 card=RHSCARD;
             }
             else if(stris(str,"BOUNDS")){
@@ -414,67 +415,68 @@ unsigned int readMPS(FILE *&fp,double *&A,double *&b,double *&c, unordered_map<s
                 break;
                 case COLCARD:
                     numcols=sscanf(str," %s %s %lf %s %lf",varname, constraint[0], &f[0], constraint[1], &f[1]);
-                    if((numcols!=3) && (numcols!=5)){
+                    /* Need to add logic to dynamically enlarge the A matrix as necessary. */
+                    if((numcols==3)||(numcols==5)){
+                        if(VariableSet.end() == VariableSet.find(varname)){
+                            VariableSet[varname] = new Variable(numVars);
+                            numVars++;
+                            A = (double *)realloc(A,numVars*numConstraints*sizeof(double));
+                            c = (double *)realloc(c,numVars*sizeof(double));
+                        }
+                        for(i=0;i<=(numcols==5);i++){
+                            if(ConstraintSet.end() != ConstraintSet.find(constraint[i])){
+                                switch(ConstraintSet[constraint[i]]->getType()){
+                                    case 'L':
+                                        A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[i]]->getNum()] = f[i];
+                                    break;
+                                    case 'E':
+                                        A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[i]]->getNum()] = f[i];
+                                    break;
+                                    case 'G':
+                                        A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[i]]->getNum()] = -f[i];
+                                    break;
+                                    default:
+                                        printf("Unknown constraint type online %d",lineno);
+                                        return(1);
+                                    break;
+                                }
+                            }
+                            else if(cost==constraint[i]){
+                                c[VariableSet[varname]->getNum()] = f[i];
+                            }
+                        }
+                    }
+                    else {
                         printf("Parse error in Column Card on line: %d",lineno);
                         exit(1);
-                    }
-                    if(VariableSet.end() == VariableSet.find(varname)){
-                        VariableSet[varname] = new Variable(numVars);
-                        numVars++;
-                        A = (double *)realloc(A,numVars*numConstraints*sizeof(double));
-                        c = (double *)realloc(c,numVars*sizeof(double));
-                    }
-
-                    /* Need to add logic to dynamically enlarge the A matrix as necessary. */
-                    if(3<=numcols){
-                        if(ConstraintSet.end() != ConstraintSet.find(constraint[0])){
-                            switch(ConstraintSet[constraint[0]]->getType()){
-                                case 'L':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[0]]->getNum()] = f[0];
-                                break;
-                                case 'E':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[0]]->getNum()] = f[0];
-                                break;
-                                case 'G':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[0]]->getNum()] = -f[0];
-                                break;
-                                default:
-                                    printf("Unknown constraint type online %d",lineno);
-                                    return(1);
-                                break;
-                            }
-                        }
-                        else if(cost==constraint[0]){
-                            c[VariableSet[varname]->getNum()] = f[0];
-                        }
-                    }
-                    if(5==numcols){
-                        if(ConstraintSet.end() != ConstraintSet.find(constraint[1])){
-                            switch(ConstraintSet[constraint[1]]->getType()){
-                                case 'L':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[1]]->getNum()] = f[1];
-                                break;
-                                case 'E':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[1]]->getNum()] = f[1];
-                                break;
-                                case 'G':
-                                    A[((VariableSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[1]]->getNum()] = -f[1];
-                                break;
-                                default:
-                                    printf("Unknown constraint type online %d",lineno);
-                                    return(1);
-                                break;
-                            }
-                        }
-                        else if(cost==constraint[1]){
-                            c[VariableSet[varname]->getNum()] = f[1];
-                        }
-
                     }
 
                 break;
                 case RHSCARD:
-                    printf("  manage rhs card\r\n");
+                    numcols=sscanf(str," %s %s %lf %s %lf",varname, constraint[0], &f[0], constraint[1], &f[1]);
+
+                    /* Need to add logic to dynamically enlarge the A matrix as necessary. */
+                    if((numcols==3)||(numcols==5)){
+                        if(RHSSet.end() == RHSSet.find(varname)){
+                            RHSSet[varname] = new Variable(numVars);
+                            numVars++;
+                            b = (double *)realloc(b,numVars*numConstraints*sizeof(double));
+                        }
+                        for(i=0;i<=(numcols==5);i++){
+                            if(ConstraintSet.end() != ConstraintSet.find(constraint[i])){
+                                b[((RHSSet[varname]->getNum())*numConstraints)+ConstraintSet[constraint[i]]->getNum()] = (ConstraintSet[constraint[i]]->getType() == 'G') ? -f[i] : f[i];
+                            }
+                            else{
+                               printf("Error Constraint not found in evaluating RHS card."); 
+                               return(1);
+                            }
+                        }
+                    }
+                    else {
+                        printf("Parse error in Column Card on line: %d",lineno);
+                        exit(1);
+                    }
+
                 break;
                 case BOUNDCARD:
                     printf("  manage bound card\r\n");
@@ -498,7 +500,6 @@ int main(int argc, char **argv)
 {
     FILE *fp;
     ILP *p = new ILP;
-    unsigned int numConstraints,numVars;
     //double a[9] = {2,1,2,3,3,1};
     //double b[4] = {4,3};
     //double c[3] = {4,1,1};
@@ -508,15 +509,25 @@ int main(int argc, char **argv)
 
     unordered_map<string,Entity * > ConstraintSet;
     unordered_map<string,Entity * > VariableSet;
+    unordered_map<string,Entity * > RHSSet;
+
+    if(argc < 2){
+        printf("usage: simplex <filename.mps> \r\n");
+        return(1);
+    }
 
 
-    fp = fopen("./data/test.mps","r");
-    readMPS(fp,A,b,c,ConstraintSet,VariableSet);
+    if(NULL == (fp = fopen(argv[1],"r"))){
+        printf("failed to open file: %s \r\n",argv[1]);
+        return(1);
+    }
+    readMPS(fp,A,b,c,ConstraintSet,VariableSet,RHSSet);
 
-   printf("Printing matrix of %d rows and %d cols...\r\n",ConstraintSet.size(),VariableSet.size()); 
+   printf("Printing matrix of %lu rows and %lu cols...\r\n",ConstraintSet.size(),VariableSet.size()); 
    p->print_matrix(A,ConstraintSet.size(),VariableSet.size());
    p->print_matrix(c,VariableSet.size(),1);
 
+   p->print_matrix(b,ConstraintSet.size(),1);
     delete p;
 
     fclose(fp);
